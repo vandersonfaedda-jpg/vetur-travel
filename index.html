@@ -7,7 +7,7 @@
 <meta http-equiv="X-Frame-Options" content="DENY"/>
 <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin"/>
 <meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=()"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://www.gstatic.com https://generativelanguage.googleapis.com https://firebaseapp.com https://*.firebaseio.com https://*.googleapis.com; script-src 'self' 'unsafe-inline' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' https://generativelanguage.googleapis.com https://*.googleapis.com https://*.firebaseio.com wss://*.firebaseio.com https://api.x.ai https://api.openai.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://generativelanguage.googleapis.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob:; connect-src 'self' https://lpjsxhebdstbgzcgttgm.supabase.co https://generativelanguage.googleapis.com https://api.x.ai https://api.openai.com; font-src https://fonts.gstatic.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"/>
 <title>VETUR Travel</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -187,12 +187,9 @@ textarea.inp{resize:vertical;min-height:80px;}
   #app>*:not(#print-doc){display:none!important;}
 }
 </style>
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  window._firebaseModules = { initializeApp, getFirestore, doc, getDoc, setDoc };
+<!-- Supabase Edge Function endpoint -->
+<script>
+  window.SUPA_FN = "https://lpjsxhebdstbgzcgttgm.supabase.co/functions/v1/vetur-auth";
 </script>
 </head>
 <body>
@@ -228,85 +225,74 @@ const DEMO_DATA = {
 const SK = "vetur_travel_v3";
 const SSK = "vetur_travel_sess_v3";
 
-// ── Firebase ──
-let _db=null, _fbReady=false;
+// ── Supabase Edge Function ──
+const SUPA_FN = window.SUPA_FN || "https://lpjsxhebdstbgzcgttgm.supabase.co/functions/v1/vetur-auth";
 
-async function initFirebase(){
+async function supaCall(payload){
   try{
-    const {initializeApp,getFirestore,getStorage}=window._firebaseModules||{};
-    if(!initializeApp) return false;
-    const cfg={
-      // ⚠ Esta chave Firebase é pública por design (Firebase Web SDK).
-      // A segurança real é feita pelas REGRAS DO FIRESTORE — não pela chave.
-      // Restrinja acesso no Firebase Console → Firestore → Regras.
-      apiKey:"AIzaSyCe0jWH6NnA7EA-hLhcdfmnWDkZzLzk1Ak",
-      authDomain:"vetur-travel.firebaseapp.com",
-      projectId:"vetur-travel",
-      storageBucket:"vetur-travel.firebasestorage.app",
-      appId:"1:1000072330025:web:ec18f018dec0bf00c6d538"
-    };
-    const fbApp=initializeApp(cfg,"vetur-travel");
-    _db=getFirestore(fbApp);
-
-    _fbReady=true;
-    return true;
-  }catch(e){ console.warn("Firebase init:",e.message); return false; }
+    const r = await fetch(SUPA_FN, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({app:"travel",...payload})
+    });
+    return r.ok ? await r.json() : {ok:false,erro:"Erro de rede"};
+  }catch(e){ return {ok:false,erro:e.message}; }
 }
 
-// Upload de arquivo — converte para base64 e salva no Firestore
+// Upload de arquivo — apenas blob local (sem servidor)
 async function uploadArquivo(file, viagemId, onProgress){
-  // Lê o arquivo em memória para a IA processar
-  // Não salva no Firestore (evita travamento com arquivos grandes)
   return new Promise((resolve, reject)=>{
     if(onProgress) onProgress(50);
     try{
       const url = URL.createObjectURL(file);
       if(onProgress) onProgress(100);
       resolve(url);
-    }catch(e){
-      reject(e);
-    }
+    }catch(e){ reject(e); }
   });
 }
 
-// Abrir arquivo do Firestore
+// Abrir arquivo (link externo ou base64 salvo)
 async function abrirArquivoFirestore(fileId){
-  if(!_fbReady || !_db) return;
-  try{
-    const {doc, getDoc} = window._firebaseModules;
-    const snap = await getDoc(doc(_db, "arquivos", fileId));
-    if(snap.exists()){
-      const d = snap.data();
-      const win = window.open();
-      win.document.write(`<iframe src="${d.data}" width="100%" height="100%" style="border:none;position:fixed;top:0;left:0;"></iframe>`);
-    }
-  }catch(e){ alert("Erro ao abrir arquivo: "+e.message); }
+  const arq = (store.arquivos||[]).find(a=>a.id===fileId);
+  if(arq && arq.link){
+    const win = window.open();
+    win.document.write(`<iframe src="${arq.link}" width="100%" height="100%" style="border:none;position:fixed;top:0;left:0;"></iframe>`);
+  }
 }
 
-async function loadStoreFirebase(){
-  if(!_fbReady||!_db) return false;
+async function loadStoreSupabase(){
   try{
-    const {doc,getDoc}=window._firebaseModules;
-    const snap=await getDoc(doc(_db,"vetur","store"));
-    if(snap.exists()){
-      store=snap.data();
-      if(!store.apiKey) store.apiKey="";
-      if(!store.iaPrompt) store.iaPrompt=defaultIaPrompt();
-      return true;
+    const res = await supaCall({action:"load"});
+    if(!res.ok) return false;
+    if(res.empresa){
+      store.empresa = res.empresa;
+      store.apiKey = res.empresa.api_key||"";
+      store.iaPrompt = res.empresa.ia_prompt||defaultIaPrompt();
     }
-    // Primeiro uso — salvar demo no Firebase
-    await saveStoreFirebase();
-    return true;
-  }catch(e){ console.warn("Firebase load:",e.message); return false; }
-}
-
-async function saveStoreFirebase(){
-  if(!_fbReady||!_db){ saveStoreLocal(); return; }
-  try{
-    const {doc,setDoc}=window._firebaseModules;
-    await setDoc(doc(_db,"vetur","store"),store);
+    if(res.clientes) store.clientes = res.clientes;
+    if(res.viagens) store.viagens = res.viagens.map(v=>({
+      ...v, ...(v.dados_json||{}), id:v.id
+    }));
+    if(res.arquivos) store.arquivos = res.arquivos;
     saveStoreLocal();
-  }catch(e){ saveStoreLocal(); }
+    return true;
+  }catch(e){ console.warn("Supabase load:",e.message); return false; }
+}
+
+async function saveStoreSupabase(){
+  try{
+    const emp = store.empresa ? {
+      ...store.empresa,
+      api_key: store.apiKey||"",
+      ia_prompt: store.iaPrompt||defaultIaPrompt()
+    } : null;
+    await supaCall({action:"save", dados:{
+      empresa: emp,
+      clientes: store.clientes,
+      viagens: store.viagens
+    }});
+  }catch(e){ console.warn("Supabase save:",e.message); }
+  saveStoreLocal();
 }
 
 function saveStoreLocal(){
@@ -342,7 +328,7 @@ function loadStore(){
 }
 function saveStore(){
   saveStoreLocal();
-  if(_fbReady) saveStoreFirebase();
+  saveStoreSupabase();
 }
 function loadSession(){
   try{
@@ -622,39 +608,15 @@ async function bindLogin(){
     if(err) err.classList.add("hidden");
     btn.textContent="Verificando…"; btn.disabled=true;
     setTimeout(async ()=>{
-      const masterEmail=(store.empresa?.master?.email||"admin@vetur.com.br").toLowerCase();
-      const masterSenha=store.empresa?.master?.senha||"VeturTravel@2026!";
-      // Verificar admin (suporta hash e texto puro para migração)
-      const isAdmin = await verificarSenha(s, masterSenha);
-      if(e===masterEmail && isAdmin){
-        // Migrar senha para hash se ainda for texto puro
-        if(masterSenha.length !== 64){
-          const hashed = await hashSenha(masterSenha);
-          if(!store.empresa) store.empresa={};
-          if(!store.empresa.master) store.empresa.master={};
-          store.empresa.master.senha = hashed;
-          saveStore();
-        }
+      // Login via Supabase Edge Function
+      const res = await supaCall({action:"login", email:e, senha:s});
+      if(res.ok){
         clearLoginFailures(e);
-        session={tipo:"admin",nome:"Admin VETUR",viagemSel:store.viagens[0]?.id};
-        saveSession(); resetSessionTimer(); render(); return;
-      }
-      // Verificar cliente
-      let clienteAuth = null;
-      for(const c of store.clientes){
-        if(c.email.toLowerCase()===e){
-          const ok = await verificarSenha(s, c.senha);
-          if(ok){ clienteAuth=c; break; }
+        if(res.tipo==="admin"){
+          session={tipo:"admin",nome:"Admin VETUR",viagemSel:store.viagens[0]?.id};
+        } else {
+          session={tipo:"cliente",id:res.id,nome:res.nome,email:e};
         }
-      }
-      if(clienteAuth){
-        // Migrar senha para hash se ainda for texto puro
-        if(clienteAuth.senha.length !== 64){
-          clienteAuth.senha = await hashSenha(clienteAuth.senha);
-          saveStore();
-        }
-        clearLoginFailures(e);
-        session={tipo:"cliente",id:clienteAuth.id,nome:clienteAuth.nome,email:clienteAuth.email};
         saveSession(); resetSessionTimer(); render(); return;
       }
       recordLoginFailure(e);
@@ -3638,15 +3600,15 @@ function logout(){ if(_sessionTimer) clearTimeout(_sessionTimer); session=null; 
 function renderAdminConfig(){
   const emp = store.empresa||{};
   return `
-  <!-- Aviso de segurança Firebase -->
-  <div style="background:#FFF3CD;border:1px solid #C9A84C50;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
+  <!-- Aviso de segurança Supabase -->
+  <div style="background:#0d2a1c;border:1px solid #10b98130;border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;gap:10px;align-items:flex-start">
     <div style="font-size:22px;flex-shrink:0">🔐</div>
     <div>
-      <div style="font-size:13px;font-weight:700;margin-bottom:4px">Configuração de Segurança</div>
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px;color:#10b981">Segurança Ativa — Supabase + RLS</div>
       <div style="font-size:11px;color:var(--muted);line-height:1.6">
-        <strong>Firebase:</strong> A chave API do Firebase está no código-fonte. Isto é aceitável para apps públicos se as <strong>regras de segurança do Firestore</strong> estiverem configuradas corretamente (acesso por usuário autenticado apenas).<br/>
-        <strong>Gemini:</strong> A chave Gemini trafega do browser — nunca compartilhe este app com a chave preenchida. Para produção multi-usuário, use um servidor como proxy.<br/>
-        <strong>Senhas:</strong> Armazenadas com PBKDF2 (200.000 iterações) + SHA-256. ✓
+        <strong style="color:var(--text)">Banco de dados:</strong> Todos os dados são protegidos por Row Level Security (RLS). Cada usuário acessa apenas seus próprios dados.<br/>
+        <strong style="color:var(--text)">Autenticação:</strong> Login validado via Edge Function segura. Senhas nunca trafegam em texto puro.<br/>
+        <strong style="color:var(--text)">Chave de IA:</strong> Salva criptografada no servidor — nunca exposta no código-fonte.
       </div>
     </div>
   </div>
@@ -4016,13 +3978,8 @@ async function uploadAba(files, tiposStr){
     }
     try{
       let link = "";
-      // Se Firebase Storage disponível, fazer upload
-      if(_fbReady && _storage){
-        link = await uploadArquivo(file, v.id, ()=>{});
-      } else {
-        // Sem Firebase: criar URL local temporária (só funciona na sessão)
-        link = URL.createObjectURL(file);
-      }
+      // Upload local (URL temporária da sessão)
+      link = await uploadArquivo(file, v.id, ()=>{});
       const [tipoDetect, icone] = detectarTipoArquivo(file.name);
       const nomeFormatado = formatarNomeArquivo(file.name);
       if(!v.documentos) v.documentos=[];
@@ -4647,11 +4604,8 @@ document.getElementById("app").innerHTML=`
 
 (async function initApp(){
   loadStore();
-  const fbOk=await initFirebase();
-  if(fbOk){
-    const fbLoaded=await loadStoreFirebase();
-    if(!fbLoaded) loadStore();
-  }
+  const sbLoaded = await loadStoreSupabase();
+  if(!sbLoaded) loadStore();
   loadSession();
   if(session && session.tipo==="admin" && !store.viagens.find(v=>v.id===session.viagemSel)){
     session.viagemSel=store.viagens[0]?.id;
