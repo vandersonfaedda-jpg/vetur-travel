@@ -56,6 +56,7 @@ select option{background:#0C1525;}
 .pw-eye{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);font-size:14px;}
 .btn-gold{background:linear-gradient(135deg,#C9A84C,#A67C2A);color:#060C1E;border:none;border-radius:10px;padding:12px 20px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;width:100%;}
 .btn-gold:disabled{opacity:.5;cursor:not-allowed;}
+.hidden{display:none!important;}
 .login-err{background:#ef444415;border:1px solid #ef444430;color:#ef4444;border-radius:8px;padding:9px 13px;font-size:12px;margin-top:10px;text-align:center;}
 .btn-ghost{background:var(--surf);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 14px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
 .btn-sm{padding:5px 12px;font-size:11px;border-radius:7px;}
@@ -4523,7 +4524,7 @@ function renderLogin(){
       <div class="fgroup"><label class="flabel">E-mail</label><input id="l-email" type="email" class="inp" placeholder="seu@email.com"/></div>
       <div class="fgroup"><label class="flabel">Senha</label><div class="pw-wrap"><input id="l-senha" type="password" class="inp inp-pw" placeholder="••••••••"/><button class="pw-eye" id="l-eye">👁</button></div></div>
       <button class="btn-gold" id="l-btn" disabled>Entrar na minha viagem →</button>
-      <div id="l-err" class="login-err hidden"></div>
+      <div id="l-err" class="login-err hidden" style="display:none"></div>
       <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--muted)">Problemas? Entre em contato com a VETUR.</div>
     </div>
 
